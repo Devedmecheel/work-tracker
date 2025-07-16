@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متتبع ساعات العمل</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container mt-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white text-center">
+                <h1>متتبع ساعات العمل اليومي</h1>
+            </div>
+            <div class="card-body">
+
+                <!-- قسم العداد التلقائي -->
+                <div class="timer-section text-center p-4 mb-4 bg-light rounded">
+                    <h2 class="mb-3">العداد التلقائي</h2>
+                    <h3 id="timer-display" class="display-4 font-monospace">00:00:00</h3>
+                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+                        <button id="start-stop-btn" class="btn btn-success btn-lg px-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+                            بدء
+                        </button>
+                    </div>
+                </div>
+
+                <!-- قسم الإدخال اليدوي -->
+                <div class="manual-section p-4 mb-4 bg-light rounded">
+                    <h2 class="mb-3 text-center">إضافة جلسة يدوياً</h2>
+                    <form id="manual-form" class="row g-3 align-items-end justify-content-center">
+                        <div class="col-md-4">
+                            <label for="start-time" class="form-label">وقت البدء</label>
+                            <input type="time" id="start-time" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="end-time" class="form-label">وقت الانتهاء</label>
+                            <input type="time" id="end-time" class="form-control" required>
+                        </div>
+                        <div class="col-md-2 d-grid">
+                             <button type="submit" class="btn btn-primary">إضافة</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- قسم النتائج -->
+                <div class="results-section p-4">
+                    <h2 class="text-center mb-3">ملخص اليوم</h2>
+                    <div class="alert alert-info text-center" role="alert">
+                        <h4>إجمالي ساعات العمل: <strong id="total-hours">00:00:00</strong></h4>
+                    </div>
+
+                    <h3 class="mt-4">الجلسات المسجلة</h3>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">وقت البدء</th>
+                                    <th scope="col">وقت الانتهاء</th>
+                                    <th scope="col">المدة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessions-table-body">
+                                <!-- سيتم إضافة الصفوف هنا بواسطة JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                     <div class="text-center mt-4">
+                        <button id="clear-data-btn" class="btn btn-danger">مسح كل بيانات اليوم</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="app.js"></script>
+</body>
+</html>

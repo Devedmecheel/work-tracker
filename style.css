@@ -1,0 +1,22 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.card {
+    border: none;
+}
+
+#timer-display {
+    color: #0d6efd; /* لون أزرق Bootstrap */
+    font-weight: bold;
+}
+
+#start-stop-btn.running {
+    background-color: #dc3545; /* أحمر */
+    border-color: #dc3545;
+}
+
+.table-responsive {
+    max-height: 400px;
+    overflow-y: auto;
+}
