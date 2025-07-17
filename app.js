@@ -1,166 +1,344 @@
-// ننتظر حتى يتم تحميل كل عناصر الصفحة بالكامل
 document.addEventListener('DOMContentLoaded', () => {
+    // ... الكود هنا يبقى كما هو حتى نصل إلى دوال الرسوم البيانية ومعالج الوضع الليلي ...
+    // --- 1. تحديد العناصر ---
+    const elements = { /* ... */ };
+    // --- 2. متغيرات الحالة ---
+    let timerInterval = null, isTimerRunning = false, currentSessionStartTime = null;
+    let allData = {}; 
+    let currentDateKey = new Date().toISOString().slice(0, 10);
+    let weeklyChartInstance, hourlyChartInstance;
 
-    // --- 1. تحديد العناصر الأساسية ---
-    const timerDisplay = document.getElementById('timer-display');
-    const startStopBtn = document.getElementById('start-stop-btn');
-    const manualForm = document.getElementById('manual-form');
-    const startTimeInput = document.getElementById('start-time');
-    const endTimeInput = document.getElementById('end-time');
-    const sessionsTableBody = document.getElementById('sessions-table-body');
-    const totalHoursDisplay = document.getElementById('total-hours');
-    const clearDataBtn = document.getElementById('clear-data-btn');
+    // --- 3 & 4. دوال البيانات والمساعدة (تبقى كما هي) ---
+    const saveData = () => localStorage.setItem('workTrackerData', JSON.stringify(allData));
+    const loadData = () => { /* ... كما هو ... */ };
+    const formatTime = (date) => { /* ... كما هو ... */ };
+    const formatDuration = (ms, withSeconds = true) => { /* ... كما هو ... */ };
+    
+    // --- 5. تحديث الواجهة (يبقى كما هو) ---
+    const renderUIForDate = (dateKey, flashIndex = -1) => { /* ... كما هو ... */ };
+    const updateTimerDisplay = () => { /* ... كما هو ... */ };
 
-    // --- 2. متغيرات حالة التطبيق ---
-    let timerInterval = null; // لتخزين المؤقت
-    let isTimerRunning = false; // لمعرفة حالة العداد
-    let currentSessionStartTime = null; // لتخزين وقت بدء الجلسة الحالية
-    let sessions = []; // مصفوفة لتخزين كل جلسات العمل
+    // --- 6. الرسوم البيانية (مع تعديل بسيط للألوان) ---
+    const renderCharts = () => {
+        // نحدد الألوان بناءً على الثيم الحالي
+        const isDarkMode = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const fontColor = isDarkMode ? '#dee2e6' : '#495057';
+        
+        // تحديث خيارات الألوان العامة في Chart.js
+        Chart.defaults.color = fontColor;
+        Chart.defaults.borderColor = gridColor;
 
-    // --- 3. الدوال الأساسية ---
-
-    // دالة لحفظ البيانات في المتصفح (localStorage)
-    const saveData = () => {
-        localStorage.setItem('workSessions', JSON.stringify(sessions));
+        renderWeeklyBarChart();
+        renderHourlyBreakdownChart();
     };
 
-    // دالة لتحميل البيانات من المتصفح عند فتح الصفحة
-    const loadData = () => {
-        const savedSessions = localStorage.getItem('workSessions');
-        if (savedSessions) {
-            // نحول النصوص المخزنة إلى كائنات Date حقيقية
-            sessions = JSON.parse(savedSessions).map(session => ({
-                start: new Date(session.start),
-                end: new Date(session.end)
-            }));
+    function renderWeeklyBarChart() {
+        const labels = [];
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateKey = d.toISOString().slice(0, 10);
+            labels.push(d.toLocaleDateString('ar-EG', { weekday: 'short' }));
+            const daySessions = allData[dateKey] || [];
+            const totalMs = daySessions.reduce((sum, s) => sum + (s.end.getTime() - s.start.getTime()), 0);
+            data.push((totalMs / (1000 * 60 * 60)).toFixed(2));
         }
-        renderUI();
+
+        if (weeklyChartInstance) weeklyChartInstance.destroy();
+        weeklyChartInstance = new Chart(document.getElementById('weekly-chart'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'ساعات العمل', data, backgroundColor: 'rgba(0, 123, 255, 0.6)', borderColor: 'rgba(0, 123, 255, 1)', borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'ساعات' } } } }
+        });
+    }
+
+    function renderHourlyBreakdownChart() {
+        const hourlyTotals = Array(24).fill(0);
+        Object.values(allData).flat().forEach(session => {
+            let start = session.start;
+            let end = session.end;
+            for (let hour = start.getHours(); hour <= end.getHours(); hour++) {
+                const hourStart = new Date(start).setHours(hour, 0, 0, 0);
+                const hourEnd = new Date(start).setHours(hour, 59, 59, 999);
+                const overlapStart = Math.max(start, hourStart);
+                const overlapEnd = Math.min(end, hourEnd);
+                if (overlapEnd > overlapStart) {
+                    hourlyTotals[hour] += (overlapEnd - overlapStart) / (1000 * 60);
+                }
+            }
+        });
+        
+        if (hourlyChartInstance) hourlyChartInstance.destroy();
+        hourlyChartInstance = new Chart(document.getElementById('hourly-chart'), {
+            type: 'bar',
+            data: {
+                labels: Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`),
+                datasets: [{ label: 'متوسط الدقائق', data: hourlyTotals, backgroundColor: 'rgba(23, 162, 184, 0.6)' }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { title: { display: true, text: 'إجمالي الدقائق' } } } }
+        });
+    }
+    
+    // --- 7. معالجات الأحداث (مع معالج الوضع الليلي المصحح) ---
+
+    // ... كل المعالجات الأخرى (datePicker, startStopBtn, etc.) تبقى كما هي تماماً ...
+    
+    // إصلاح منطق الوضع الليلي بالكامل
+    const applyTheme = (theme) => {
+        document.documentElement.setAttribute('data-bs-theme', theme);
     };
 
-    // دالة لتنسيق الوقت (مثال: 14:05)
-    const formatTime = (date) => {
-        if (!date || isNaN(date)) return '---';
-        return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('darkModeSwitch').addEventListener('change', (e) => {
+        const newTheme = e.target.checked ? 'dark' : 'light';
+        localStorage.setItem('theme', newTheme);
+        applyTheme(newTheme);
+        // نعيد رسم المخططات بعد تغيير الثيم لضمان تحديث الألوان
+        // بما أن هذا يحدث مرة واحدة فقط عند التغيير، فلن تحدث حلقة لا نهائية
+        renderCharts();
+    });
+
+    // --- 8. التشغيل الأولي (مع تعديل بسيط) ---
+    const initialize = () => {
+        loadData();
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.getElementById('darkModeSwitch').checked = savedTheme === 'dark';
+        applyTheme(savedTheme);
+        
+        const datePicker = document.getElementById('date-picker');
+        datePicker.value = currentDateKey;
+        datePicker.dispatchEvent(new Event('change')); // لتشغيل العرض لأول مرة
     };
 
-    // دالة لتنسيق المدة الزمنية (مثال: 01:30:15)
-    const formatDuration = (milliseconds) => {
-        const totalSeconds = Math.floor(milliseconds / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        return [hours, minutes, seconds]
-            .map(v => v.toString().padStart(2, '0'))
-            .join(':');
+    // هذا الكود الكامل والصحيح. يمكنك نسخ كل ما هو داخل `DOMContentLoaded` واستبداله.
+    // ...
+    // ملحوظة: لضمان أن الكود الكامل موجود، سأضع هنا المحتوى الكامل للملف مرة أخرى
+});
+
+// ==========================================================
+// ========== الكود الكامل والنهائي لملف app.js ============
+// ==========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // --- 1. تحديد العناصر ---
+    const elements = {
+        timerDisplay: document.getElementById('timer-display'),
+        startStopBtn: document.getElementById('start-stop-btn'),
+        manualForm: document.getElementById('manual-form'),
+        manualCollapse: new bootstrap.Collapse(document.getElementById('manualCollapse'), { toggle: false }),
+        startTimeInput: document.getElementById('start-time'),
+        endTimeInput: document.getElementById('end-time'),
+        sessionsTableBody: document.getElementById('sessions-table-body'),
+        totalHoursDisplay: document.getElementById('total-hours'),
+        sessionCountDisplay: document.getElementById('session-count'),
+        noSessionsMsg: document.getElementById('no-sessions-msg'),
+        clearDataBtn: document.getElementById('clear-data-btn'),
+        darkModeSwitch: document.getElementById('darkModeSwitch'),
+        datePicker: document.getElementById('date-picker'),
+        weeklyChartCanvas: document.getElementById('weekly-chart'),
+        hourlyChartCanvas: document.getElementById('hourly-chart'),
     };
 
-    // دالة لتحديث واجهة المستخدم (عرض الجلسات والإجمالي)
-    const renderUI = () => {
-        // مسح الجدول الحالي
-        sessionsTableBody.innerHTML = '';
+    // --- 2. متغيرات الحالة ---
+    let timerInterval = null, isTimerRunning = false, currentSessionStartTime = null;
+    let allData = {};
+    let currentDateKey = new Date().toISOString().slice(0, 10);
+    let weeklyChartInstance, hourlyChartInstance;
+
+    // --- 3. دوال التعامل مع البيانات ---
+    const saveData = () => localStorage.setItem('workTrackerData', JSON.stringify(allData));
+    const loadData = () => {
+        const saved = localStorage.getItem('workTrackerData');
+        if (saved) {
+            allData = JSON.parse(saved);
+            Object.keys(allData).forEach(dateKey => {
+                allData[dateKey] = allData[dateKey].map(s => ({ start: new Date(s.start), end: new Date(s.end) }));
+            });
+        }
+    };
+
+    // --- 4. دوال مساعدة ---
+    const formatTime = (date) => date ? date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false }) : '---';
+    const formatDuration = (ms) => {
+        if (ms < 0) ms = 0;
+        const s = Math.floor(ms / 1000);
+        return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60]
+            .map(v => v.toString().padStart(2, '0')).join(':');
+    };
+    
+    // --- 5. دوال تحديث الواجهة ---
+    const renderUIForDate = (dateKey) => {
+        const sessions = allData[dateKey] || [];
+        elements.sessionsTableBody.innerHTML = '';
         let totalMilliseconds = 0;
+        sessions.sort((a, b) => a.start - b.start);
+        elements.noSessionsMsg.classList.toggle('d-none', sessions.length > 0);
 
-        // إضافة كل جلسة إلى الجدول
         sessions.forEach((session, index) => {
             const durationMs = session.end.getTime() - session.start.getTime();
             totalMilliseconds += durationMs;
-
             const row = document.createElement('tr');
-            row.innerHTML = `
-                <th scope="row">${index + 1}</th>
-                <td>${formatTime(session.start)}</td>
-                <td>${formatTime(session.end)}</td>
-                <td>${formatDuration(durationMs)}</td>
-            `;
-            sessionsTableBody.appendChild(row);
+            row.innerHTML = `<td>${index + 1}</td><td>${formatTime(session.start)}</td><td>${formatTime(session.end)}</td><td>${formatDuration(durationMs)}</td><td class="text-center"><button class="btn btn-sm btn-outline-danger delete-btn" data-index="${index}" title="حذف"><i class="bi bi-trash3"></i></button></td>`;
+            elements.sessionsTableBody.appendChild(row);
         });
 
-        // تحديث إجمالي ساعات العمل
-        totalHoursDisplay.textContent = formatDuration(totalMilliseconds);
+        elements.totalHoursDisplay.textContent = formatDuration(totalMilliseconds);
+        elements.sessionCountDisplay.textContent = sessions.length;
+        renderCharts();
     };
 
-    // دالة لتحديث شاشة العداد كل ثانية
     const updateTimerDisplay = () => {
-        const now = new Date();
-        const elapsed = now.getTime() - currentSessionStartTime.getTime();
-        timerDisplay.textContent = formatDuration(elapsed);
+        const elapsed = new Date().getTime() - currentSessionStartTime.getTime();
+        elements.timerDisplay.textContent = formatDuration(elapsed);
+        document.title = `${formatDuration(elapsed)} - متتبع العمل`;
     };
 
-    // --- 4. معالجات الأحداث (Event Handlers) ---
+    // --- 6. الرسوم البيانية ---
+    const renderCharts = () => {
+        const isDarkMode = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const fontColor = isDarkMode ? '#dee2e6' : '#495057';
+        
+        Chart.defaults.color = fontColor;
+        Chart.defaults.borderColor = gridColor;
 
-    // عند الضغط على زر "بدء/إيقاف"
-    startStopBtn.addEventListener('click', () => {
+        renderWeeklyBarChart();
+        renderHourlyBreakdownChart();
+    };
+
+    function renderWeeklyBarChart() {
+        if (weeklyChartInstance) weeklyChartInstance.destroy();
+        const labels = [];
+        const data = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateKey = d.toISOString().slice(0, 10);
+            labels.push(d.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric'}));
+            const totalMs = (allData[dateKey] || []).reduce((sum, s) => sum + (s.end.getTime() - s.start.getTime()), 0);
+            data.push((totalMs / (1000 * 60 * 60)).toFixed(2));
+        }
+        weeklyChartInstance = new Chart(elements.weeklyChartCanvas, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'ساعات العمل', data, backgroundColor: 'rgba(0, 123, 255, 0.6)' }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'ساعات' } } } }
+        });
+    }
+
+    function renderHourlyBreakdownChart() {
+        if (hourlyChartInstance) hourlyChartInstance.destroy();
+        const hourlyTotals = Array(24).fill(0);
+        Object.values(allData).flat().forEach(session => {
+            let start = session.start, end = session.end;
+            for (let hour = start.getHours(); hour <= end.getHours(); hour++) {
+                const hStart = new Date(start).setHours(hour, 0, 0, 0);
+                const hEnd = new Date(start).setHours(hour, 59, 59, 999);
+                if (end > hStart && start < hEnd) {
+                    hourlyTotals[hour] += (Math.min(end, hEnd) - Math.max(start, hStart)) / (1000 * 60);
+                }
+            }
+        });
+        hourlyChartInstance = new Chart(elements.hourlyChartCanvas, {
+            type: 'bar',
+            data: {
+                labels: Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}`),
+                datasets: [{ label: 'إجمالي الدقائق', data: hourlyTotals, backgroundColor: 'rgba(23, 162, 184, 0.6)' }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { title: { display: true, text: 'دقائق' } } }, plugins: { legend: { display: false } } }
+        });
+    }
+
+    // --- 7. معالجات الأحداث ---
+    elements.datePicker.addEventListener('change', () => {
+        currentDateKey = elements.datePicker.value;
+        const isToday = currentDateKey === new Date().toISOString().slice(0, 10);
+        elements.startStopBtn.disabled = !isToday || isTimerRunning;
+        elements.manualForm.querySelector('button[type="submit"]').disabled = !isToday;
+        renderUIForDate(currentDateKey);
+    });
+    
+    elements.startStopBtn.addEventListener('click', () => {
         isTimerRunning = !isTimerRunning;
-
+        elements.datePicker.disabled = isTimerRunning;
         if (isTimerRunning) {
-            // حالة البدء
             currentSessionStartTime = new Date();
             timerInterval = setInterval(updateTimerDisplay, 1000);
-            startStopBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stop-fill" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
-                إيقاف
-            `;
-            startStopBtn.classList.remove('btn-success');
-            startStopBtn.classList.add('btn-danger', 'running');
+            updateTimerDisplay();
+            elements.startStopBtn.innerHTML = `<i class="bi bi-stop-fill"></i> إيقاف`;
+            elements.startStopBtn.classList.replace('btn-success', 'btn-danger');
         } else {
-            // حالة الإيقاف
             clearInterval(timerInterval);
-            timerDisplay.textContent = "00:00:00";
-            
-            const session = {
-                start: currentSessionStartTime,
-                end: new Date()
-            };
-            sessions.push(session);
-            
-            saveData();
-            renderUI();
-            
-            startStopBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
-                بدء
-            `;
-            startStopBtn.classList.remove('btn-danger', 'running');
-            startStopBtn.classList.add('btn-success');
+            document.title = "سجل ساعات العمل";
+            const session = { start: currentSessionStartTime, end: new Date() };
+            if ((session.end.getTime() - session.start.getTime()) >= 10000) {
+                if (!allData[currentDateKey]) allData[currentDateKey] = [];
+                allData[currentDateKey].push(session);
+                saveData();
+                renderUIForDate(currentDateKey);
+            } else { alert("لم يتم حفظ الجلسة لأنها قصيرة جداً."); }
+            elements.timerDisplay.textContent = "00:00:00";
+            elements.startStopBtn.innerHTML = `<i class="bi bi-play-fill"></i> بدء`;
+            elements.startStopBtn.classList.replace('btn-danger', 'btn-success');
         }
     });
 
-    // عند إضافة جلسة يدوياً
-    manualForm.addEventListener('submit', (e) => {
-        e.preventDefault(); // منع إعادة تحميل الصفحة
-
-        const startTime = startTimeInput.value;
-        const endTime = endTimeInput.value;
-
-        if (!startTime || !endTime || startTime >= endTime) {
-            alert('من فضلك أدخل وقت بدء وانتهاء صحيحين، وتأكد أن وقت الانتهاء بعد وقت البدء.');
-            return;
-        }
-
-        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        const session = {
-            start: new Date(`${today}T${startTime}`),
-            end: new Date(`${today}T${endTime}`)
-        };
-        sessions.push(session);
-        sessions.sort((a, b) => a.start - b.start); // نرتب الجلسات حسب وقت البدء
-        
+    elements.manualForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const { value: startTime } = elements.startTimeInput, { value: endTime } = elements.endTimeInput;
+        if (!startTime || !endTime || startTime >= endTime) return alert('أوقات غير صحيحة.');
+        const newStart = new Date(`${currentDateKey}T${startTime}`), newEnd = new Date(`${currentDateKey}T${endTime}`);
+        if ((allData[currentDateKey] || []).some(s => newStart < s.end && newEnd > s.start)) return alert('الوقت يتداخل مع جلسة أخرى.');
+        if (!allData[currentDateKey]) allData[currentDateKey] = [];
+        allData[currentDateKey].push({ start: newStart, end: newEnd });
         saveData();
-        renderUI();
-        
-        // مسح حقول الإدخال
-        manualForm.reset();
+        renderUIForDate(currentDateKey);
+        elements.manualForm.reset();
+        elements.manualCollapse.hide();
     });
 
-    // عند الضغط على زر مسح البيانات
-    clearDataBtn.addEventListener('click', () => {
-        if (confirm('هل أنت متأكد أنك تريد مسح كل بيانات اليوم؟ لا يمكن التراجع عن هذا الإجراء.')) {
-            sessions = [];
-            localStorage.removeItem('workSessions');
-            renderUI();
+    elements.sessionsTableBody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.delete-btn');
+        if (btn) {
+            const index = parseInt(btn.dataset.index, 10);
+            if (confirm(`هل أنت متأكد من حذف الجلسة؟`)) {
+                allData[currentDateKey].splice(index, 1);
+                if (allData[currentDateKey].length === 0) delete allData[currentDateKey];
+                saveData();
+                renderUIForDate(currentDateKey);
+            }
         }
     });
 
-    // --- 5. تشغيل التطبيق ---
-    loadData();
+    elements.clearDataBtn.addEventListener('click', () => {
+        if (isTimerRunning) return alert("يرجى إيقاف العداد أولاً.");
+        if (!(allData[currentDateKey] || []).length) return alert("لا توجد بيانات لمسحها.");
+        if (confirm(`هل أنت متأكد أنك تريد مسح كل بيانات يوم ${currentDateKey}؟`)) {
+            delete allData[currentDateKey];
+            saveData();
+            renderUIForDate(currentDateKey);
+        }
+    });
+
+    const applyTheme = (theme) => {
+        document.documentElement.setAttribute('data-bs-theme', theme);
+    };
+
+    elements.darkModeSwitch.addEventListener('change', (e) => {
+        const newTheme = e.target.checked ? 'dark' : 'light';
+        localStorage.setItem('theme', newTheme);
+        applyTheme(newTheme);
+        renderCharts();
+    });
+
+    // --- 8. التشغيل الأولي ---
+    const initialize = () => {
+        loadData();
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        elements.darkModeSwitch.checked = savedTheme === 'dark';
+        applyTheme(savedTheme);
+        elements.datePicker.value = currentDateKey;
+        elements.datePicker.dispatchEvent(new Event('change'));
+    };
+
+    initialize();
 });
